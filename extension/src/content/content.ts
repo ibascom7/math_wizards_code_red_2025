@@ -2,12 +2,33 @@
 
 interface PDFInfo {
   url: string;
-  type: 'embed' | 'object' | 'iframe' | 'link';
+  type: 'embed' | 'object' | 'iframe' | 'link' | 'direct';
   text?: string;
 }
 
 function scanForPDFs(): PDFInfo[] {
   const pdfs: PDFInfo[] = [];
+
+  // 0. MOST IMPORTANT: Check if the current page IS a PDF being viewed directly
+  // Chrome's PDF viewer has a special URL structure or content-type
+  const currentUrl = window.location.href;
+  const isPdfUrl = currentUrl.toLowerCase().endsWith('.pdf') ||
+                   currentUrl.includes('.pdf?') ||
+                   currentUrl.includes('.pdf#');
+
+  // Check if we're in Chrome's PDF viewer by looking for the PDF viewer elements
+  const isPdfViewer = document.querySelector('embed[type="application/pdf"]') !== null &&
+                      document.body.childElementCount === 1;
+
+  if (isPdfUrl || isPdfViewer) {
+    pdfs.push({
+      url: currentUrl,
+      type: 'direct',
+      text: 'Current PDF Document'
+    });
+    console.log('Math Wizards: Current page is a PDF:', currentUrl);
+    return pdfs; // Return early since the whole page is a PDF
+  }
 
   // 1. Check for <embed> tags with PDF sources
   const embeds = document.querySelectorAll('embed[type="application/pdf"], embed[src*=".pdf"]');

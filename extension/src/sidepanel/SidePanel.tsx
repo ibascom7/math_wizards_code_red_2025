@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 interface PDFInfo {
   url: string;
-  type: 'embed' | 'object' | 'iframe' | 'link';
+  type: 'embed' | 'object' | 'iframe' | 'link' | 'direct';
   text?: string;
 }
 
@@ -20,18 +20,54 @@ const SidePanel: React.FC = () => {
       // Get the active tab
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-      if (!tab.id) {
+      if (!tab.id || !tab.url) {
         throw new Error('No active tab found');
       }
+
+      // First, try to inject the content script if it's not already there
+      // This is necessary for PDF pages which don't automatically get content scripts
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['content.js']
+        });
+        console.log('Content script injected');
+      } catch (injectError) {
+        // Script might already be injected, that's okay
+        console.log('Content script injection skipped (might already exist):', injectError);
+      }
+
+      // Give the content script a moment to initialize
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Send message to content script to scan for PDFs
       const response = await chrome.tabs.sendMessage(tab.id, { action: 'scanPDFs' });
 
-      if (response.pdfs) {
+      if (response && response.pdfs) {
         setPdfs(response.pdfs);
+      } else {
+        // Fallback: check if current page is a PDF by URL
+        if (tab.url.toLowerCase().endsWith('.pdf') ||
+            tab.url.includes('.pdf?') ||
+            tab.url.includes('.pdf#')) {
+          setPdfs([{
+            url: tab.url,
+            type: 'direct',
+            text: 'Current PDF Document'
+          }]);
+        }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to scan for PDFs');
+      // Better error message
+      const errorMsg = err instanceof Error ? err.message : 'Failed to scan for PDFs';
+
+      // If connection failed, might be a restricted page
+      if (errorMsg.includes('Receiving end does not exist')) {
+        setError('Cannot scan this page (try a different page or refresh)');
+      } else {
+        setError(errorMsg);
+      }
+
       console.error('Error scanning for PDFs:', err);
     } finally {
       setScanning(false);
