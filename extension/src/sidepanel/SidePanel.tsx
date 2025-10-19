@@ -86,35 +86,140 @@ const SidePanel: React.FC = () => {
       // Get the active tab
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-      if (!tab.id) {
+      if (!tab.id || !tab.url) {
         throw new Error('No active tab found');
       }
 
-      // Capture screenshot of the visible tab
-      const screenshotUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
-        format: 'png'
-      });
+      // Check if this is a direct PDF file
+      const currentUrl = tab.url;
+      const isDirectPdf = currentUrl.toLowerCase().includes('.pdf') ||
+                         currentUrl.includes('.pdf?') ||
+                         currentUrl.includes('.pdf#') ||
+                         currentUrl.includes('/pdf/');
 
-      // Convert data URL to blob
-      const response = await fetch(screenshotUrl);
-      const blob = await response.blob();
+      let base64Image: string;
 
-      // Convert blob to base64
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve, reject) => {
-        reader.onloadend = () => {
-          const base64 = (reader.result as string).split(',')[1];
-          resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
+      if (isDirectPdf) {
+        // DIRECT PDF: Capture full page and crop out Chrome's PDF toolbar
+        console.log('Direct PDF detected - capturing page and removing toolbar');
 
-      const base64Image = await base64Promise;
+        const screenshotUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+          format: 'png'
+        });
+
+        // Chrome's PDF viewer has a toolbar at the top (~56-60px)
+        // We'll crop it out
+        const toolbarHeight = 56;
+
+        // Get viewport dimensions
+        const viewportInfo = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => {
+            return {
+              width: window.innerWidth,
+              height: window.innerHeight
+            };
+          }
+        });
+
+        const viewport = viewportInfo[0].result as { width: number; height: number };
+
+        // Crop out the toolbar from the top
+        base64Image = await cropImage(
+          screenshotUrl,
+          0, // x: start at left edge
+          toolbarHeight, // y: skip the toolbar
+          viewport.width, // width: full width
+          viewport.height - toolbarHeight // height: full height minus toolbar
+        );
+
+        console.log('PDF screenshot captured with toolbar removed, base64 length:', base64Image.length);
+
+      } else {
+        // EMBEDDED VIEWER: Find the viewer element and crop to it
+        console.log('Embedded viewer - finding viewer element');
+
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => {
+            // Try to find the PDF/document viewer element
+
+            // 1. Check for iframe (Canvas, embedded PDFs)
+            const iframe = document.querySelector('iframe[src*=".pdf"], iframe[src*="canvadoc"], iframe[src*="preview"]') as HTMLIFrameElement;
+            if (iframe) {
+              const rect = iframe.getBoundingClientRect();
+              return { found: true, x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+            }
+
+            // 2. Check for Canvas Canvadoc viewer
+            const canvadocIframe = document.querySelector('iframe[src*="canvadoc"]') as HTMLElement;
+            if (canvadocIframe) {
+              const rect = canvadocIframe.getBoundingClientRect();
+              return { found: true, x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+            }
+
+            // 3. Check for embed/object tags
+            const embed = document.querySelector('embed[type="application/pdf"]') as HTMLElement;
+            if (embed) {
+              const rect = embed.getBoundingClientRect();
+              return { found: true, x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+            }
+
+            const object = document.querySelector('object[type="application/pdf"]') as HTMLElement;
+            if (object) {
+              const rect = object.getBoundingClientRect();
+              return { found: true, x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+            }
+
+            // 4. Check for Google Books viewer
+            if (window.location.hostname.includes('books.google.com')) {
+              const viewer = document.querySelector('.pageImageDisplay, #viewport') as HTMLElement;
+              if (viewer) {
+                const rect = viewer.getBoundingClientRect();
+                return { found: true, x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+              }
+            }
+
+            // 5. Fallback: largest canvas
+            const canvases = Array.from(document.querySelectorAll('canvas'));
+            if (canvases.length > 0) {
+              const largestCanvas = canvases.reduce((largest, current) => {
+                const largestArea = largest.width * largest.height;
+                const currentArea = current.width * current.height;
+                return currentArea > largestArea ? current : largest;
+              });
+              const rect = largestCanvas.getBoundingClientRect();
+              return { found: true, x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+            }
+
+            return { found: false };
+          }
+        });
+
+        const pdfInfo = results[0].result as { found: boolean; x?: number; y?: number; width?: number; height?: number };
+
+        if (!pdfInfo.found) {
+          throw new Error('Could not locate viewer element. Try using on a direct PDF or viewer page.');
+        }
+
+        // Capture full screenshot
+        const screenshotUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+          format: 'png'
+        });
+
+        // Crop to just the viewer area
+        base64Image = await cropImage(
+          screenshotUrl,
+          pdfInfo.x!,
+          pdfInfo.y!,
+          pdfInfo.width!,
+          pdfInfo.height!
+        );
+
+        console.log('Viewer screenshot captured and cropped, base64 length:', base64Image.length);
+      }
 
       // Send to Cloudflare Worker /ocr endpoint
-      console.log('Screenshot captured, base64 length:', base64Image.length);
-
       const ocrResponse = await fetch('https://math-wizards-ocr.bascomisaiah.workers.dev', {
         method: 'POST',
         headers: {
@@ -139,6 +244,40 @@ const SidePanel: React.FC = () => {
     } finally {
       setExtracting(null);
     }
+  };
+
+  // Helper function to crop image using canvas
+  const cropImage = async (
+    dataUrl: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number
+  ): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+
+        if (!ctx) {
+          reject(new Error('Could not get canvas context'));
+          return;
+        }
+
+        // Draw the cropped portion
+        ctx.drawImage(img, x, y, width, height, 0, 0, width, height);
+
+        // Convert to base64
+        const croppedDataUrl = canvas.toDataURL('image/png');
+        const base64 = croppedDataUrl.split(',')[1];
+        resolve(base64);
+      };
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
   };
 
   useEffect(() => {
