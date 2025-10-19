@@ -1,0 +1,12 @@
+name = "math-wizards-tts"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# Optional: Set ElevenLabs API key as secret
+# Run: wrangler secret put ELEVENLABS_API_KEY
+# (or provide in request body)
+
+# Workers routes (if needed for custom domains)
+# routes = [
+#   { pattern = "tts.yourdomain.com/*", zone_name = "yourdomain.com" }
+# ]
