@@ -66,7 +66,7 @@ export default {
       const explanation = await explainMath(
         body.mathContent,
         env.GEMINI_API_KEY,
-        body.model || "gemini-1.5-flash"
+        body.model || "gemini-2.0-flash-exp"
       );
 
       // Return plain text response
@@ -103,7 +103,7 @@ export default {
 async function explainMath(
   mathContent: string,
   apiKey: string,
-  model: string = "gemini-1.5-flash"
+  model: string = "gemini-2.0-flash-exp"
 ): Promise<string> {
   const systemPrompt = `You are a helpful math tutor who explains mathematical concepts in an accessible, easy-to-understand way.
 
