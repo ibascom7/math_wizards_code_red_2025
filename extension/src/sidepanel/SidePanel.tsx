@@ -13,6 +13,8 @@ const SidePanel: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [extracting, setExtracting] = useState<number | null>(null);
   const [latex, setLatex] = useState<string | null>(null);
+  const [explanation, setExplanation] = useState<string | null>(null);
+  const [explaining, setExplaining] = useState(false);
 
   const scanForPDFs = async () => {
     setScanning(true);
@@ -246,6 +248,39 @@ const SidePanel: React.FC = () => {
     }
   };
 
+  const explainLatex = async (latexContent: string) => {
+    setExplaining(true);
+    setError(null);
+    setExplanation(null);
+
+    try {
+      // Send to Gemini worker for explanation
+      const response = await fetch('https://math-wizards-gemini.bascomisaiah.workers.dev', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          mathContent: latexContent
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Explanation request failed: ${response.status}`);
+      }
+
+      const explanationText = await response.text();
+      setExplanation(explanationText);
+      console.log('Explanation generated successfully');
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate explanation');
+      console.error('Error generating explanation:', err);
+    } finally {
+      setExplaining(false);
+    }
+  };
+
   // Helper function to crop image using canvas
   const cropImage = async (
     dataUrl: string,
@@ -349,11 +384,35 @@ const SidePanel: React.FC = () => {
             <div className="latex-content">
               {latex}
             </div>
+            <div className="latex-actions">
+              <button
+                onClick={() => navigator.clipboard.writeText(latex)}
+                className="copy-button"
+              >
+                Copy to Clipboard
+              </button>
+              <button
+                onClick={() => explainLatex(latex)}
+                disabled={explaining}
+                className="explain-button"
+              >
+                {explaining ? 'Explaining...' : '🤖 Explain This Math'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {explanation && (
+          <div className="explanation-result">
+            <h3>AI Explanation</h3>
+            <div className="explanation-content">
+              {explanation}
+            </div>
             <button
-              onClick={() => navigator.clipboard.writeText(latex)}
+              onClick={() => navigator.clipboard.writeText(explanation)}
               className="copy-button"
             >
-              Copy to Clipboard
+              Copy Explanation
             </button>
           </div>
         )}

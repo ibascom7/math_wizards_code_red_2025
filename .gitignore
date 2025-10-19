@@ -3,7 +3,8 @@ node_modules/
 
 # Build output
 extension/dist/
-workers/dist/
+workers/*/dist/
+.wrangler/
 
 # IDE
 .vscode/
@@ -16,6 +17,7 @@ Thumbs.db
 # Environment variables
 .env
 .env.local
+.dev.vars
 
 # Logs
 *.log
@@ -24,3 +26,6 @@ npm-debug.log*
 # Temporary files
 *.tmp
 *.swp
+
+# Lock files (optional - comment out if you want to commit them)
+# package-lock.json
