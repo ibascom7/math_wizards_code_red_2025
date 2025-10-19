@@ -11,6 +11,8 @@ const SidePanel: React.FC = () => {
   const [pdfs, setPdfs] = useState<PDFInfo[]>([]);
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [extracting, setExtracting] = useState<number | null>(null);
+  const [latex, setLatex] = useState<string | null>(null);
 
   const scanForPDFs = async () => {
     setScanning(true);
@@ -75,6 +77,70 @@ const SidePanel: React.FC = () => {
     }
   };
 
+  const extractLatexFromPage = async (pdfIndex: number) => {
+    setExtracting(pdfIndex);
+    setError(null);
+    setLatex(null);
+
+    try {
+      // Get the active tab
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+      if (!tab.id) {
+        throw new Error('No active tab found');
+      }
+
+      // Capture screenshot of the visible tab
+      const screenshotUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+        format: 'png'
+      });
+
+      // Convert data URL to blob
+      const response = await fetch(screenshotUrl);
+      const blob = await response.blob();
+
+      // Convert blob to base64
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      const base64Image = await base64Promise;
+
+      // Send to Cloudflare Worker /ocr endpoint
+      console.log('Screenshot captured, base64 length:', base64Image.length);
+
+      const ocrResponse = await fetch('https://math-wizards-ocr.bascomisaiah.workers.dev', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          image: base64Image
+        })
+      });
+
+      if (!ocrResponse.ok) {
+        throw new Error(`OCR request failed: ${ocrResponse.status}`);
+      }
+
+      const result = await ocrResponse.json();
+      setLatex(result.latex || 'No LaTeX detected');
+      console.log('OCR result:', result);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to extract LaTeX');
+      console.error('Error extracting LaTeX:', err);
+    } finally {
+      setExtracting(null);
+    }
+  };
+
   useEffect(() => {
     // Automatically scan when sidebar opens
     scanForPDFs();
@@ -126,8 +192,30 @@ const SidePanel: React.FC = () => {
                     <small>{pdf.images.length} page image(s) found</small>
                   </div>
                 )}
+                <button
+                  onClick={() => extractLatexFromPage(index)}
+                  disabled={extracting !== null}
+                  className="extract-button"
+                >
+                  {extracting === index ? 'Extracting...' : 'Extract LaTeX from Visible Page'}
+                </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {latex && (
+          <div className="latex-result">
+            <h3>Extracted LaTeX</h3>
+            <div className="latex-content">
+              {latex}
+            </div>
+            <button
+              onClick={() => navigator.clipboard.writeText(latex)}
+              className="copy-button"
+            >
+              Copy to Clipboard
+            </button>
           </div>
         )}
 

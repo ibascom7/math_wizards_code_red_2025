@@ -1,0 +1,7 @@
+name = "math-wizards-ocr"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# Secrets (set with: wrangler secret put MATHPIX_APP_ID)
+# wrangler secret put MATHPIX_APP_ID
+# wrangler secret put MATHPIX_APP_KEY

@@ -144,3 +144,69 @@ body {
   font-size: 12px;
   color: #888;
 }
+
+.extract-button {
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.extract-button:hover:not(:disabled) {
+  background: #45a049;
+}
+
+.extract-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.latex-result {
+  margin-top: 20px;
+  padding: 15px;
+  background: white;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.latex-result h3 {
+  margin-bottom: 10px;
+  font-size: 16px;
+  color: #333;
+}
+
+.latex-content {
+  padding: 12px;
+  background: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-all;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.copy-button {
+  margin-top: 10px;
+  padding: 6px 12px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.copy-button:hover {
+  background: #5568d3;
+}

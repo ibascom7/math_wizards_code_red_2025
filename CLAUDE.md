@@ -30,6 +30,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Chrome Extension
 ```bash
+cd extension
+
 # Install dependencies
 npm install
 
@@ -46,18 +48,23 @@ npm run build
 ```
 
 ### Cloudflare Workers
+
+#### OCR Worker
 ```bash
-# Install wrangler CLI globally
-npm install -g wrangler
+cd workers/ocr
 
-# Login to Cloudflare
-wrangler login
+# Install dependencies
+npm install
 
-# Deploy all workers
-wrangler deploy
+# Set up Mathpix API secrets
+wrangler secret put MATHPIX_APP_ID
+wrangler secret put MATHPIX_APP_KEY
 
 # Test worker locally
-wrangler dev
+npm run dev
+
+# Deploy to Cloudflare
+npm run deploy
 ```
 
 ## Project Structure
