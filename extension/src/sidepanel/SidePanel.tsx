@@ -10,6 +10,26 @@ interface PDFInfo {
   images?: string[];
 }
 
+interface KeywordLink {
+  title: string;
+  url: string;
+  snippet: string;
+  displayLink: string;
+  relevanceScore: number;
+}
+
+interface KeywordResult {
+  keyword: string;
+  field?: string;
+  highlights: Array<{
+    text: string;
+    startIndex: number;
+    endIndex: number;
+  }>;
+  links: KeywordLink[];
+  searchQuery: string;
+}
+
 const SidePanel: React.FC = () => {
   const [pdfs, setPdfs] = useState<PDFInfo[]>([]);
   const [scanning, setScanning] = useState(false);
@@ -24,6 +44,9 @@ const SidePanel: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [generatingAudio, setGeneratingAudio] = useState(false);
   const [currentWordIndex, setCurrentWordIndex] = useState<number>(-1);
+  const [keywords, setKeywords] = useState<KeywordResult[]>([]);
+  const [detectingKeywords, setDetectingKeywords] = useState(false);
+  const [fetchingLinks, setFetchingLinks] = useState(false);
   const latexContainerRef = useRef<HTMLDivElement>(null);
   const explanationContainerRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -285,6 +308,9 @@ const SidePanel: React.FC = () => {
         // Log both for comparison
         console.log('Handwriting text:', handwritingResult.typed_text);
         console.log('Mathpix LaTeX:', mathpixResult.latex);
+
+        // Detect keywords and fetch links for the extracted text
+        await detectKeywordsAndFetchLinks(finalLatex);
       }
 
     } catch (err) {
@@ -480,12 +506,72 @@ const SidePanel: React.FC = () => {
     });
   };
 
+  // Detect keywords and fetch links
+  const detectKeywordsAndFetchLinks = async (text: string) => {
+    setDetectingKeywords(true);
+    setFetchingLinks(true);
+    setError(null);
+    setKeywords([]);
+
+    try {
+      console.log('Detecting keywords and fetching links for text:', text.substring(0, 100) + '...');
+
+      // Call keyword-links worker (your new worker at localhost:8787)
+      const response = await fetch('http://localhost:8787/process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text: text,
+          keywords: [
+            // Extract potential math keywords from the text
+            // For now, we'll detect common STEM keywords automatically
+            { text: 'continuity', field: 'analysis' },
+            { text: 'limit', field: 'analysis' },
+            { text: 'topology', field: 'topology' },
+            { text: 'epsilon', field: 'analysis' },
+            { text: 'delta', field: 'analysis' },
+            { text: 'function', field: 'analysis' },
+            { text: 'derivative', field: 'calculus' },
+            { text: 'integral', field: 'calculus' },
+            { text: 'theorem', field: 'mathematics' },
+            { text: 'proof', field: 'mathematics' }
+          ],
+          maxLinksPerKeyword: 3,
+          minRelevanceScore: 0.3
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Keyword detection failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Keywords and links detected:', data);
+
+      if (data.success && data.results) {
+        // Filter out keywords that weren't found in the text
+        const foundKeywords = data.results.filter((r: KeywordResult) => r.highlights.length > 0);
+        setKeywords(foundKeywords);
+      }
+
+    } catch (err) {
+      console.error('Error detecting keywords:', err);
+      // Don't set error state - just fail silently for now
+    } finally {
+      setDetectingKeywords(false);
+      setFetchingLinks(false);
+    }
+  };
+
   useEffect(() => {
     // Automatically scan when sidebar opens
     scanForPDFs();
   }, []);
 
-  // Render LaTeX with KaTeX when latex content changes
+  // Render LaTeX with KaTeX when latex content changes or keywords change
   useEffect(() => {
     if (latex && latexContainerRef.current) {
       // Clear previous content
@@ -558,6 +644,140 @@ const SidePanel: React.FC = () => {
       }
     }
   }, [latex, viewMode]);
+
+  // Highlight keywords in the rendered LaTeX text
+  useEffect(() => {
+    if (!latex || !latexContainerRef.current || keywords.length === 0) {
+      return;
+    }
+
+    // Wait a bit for KaTeX to finish rendering
+    const timer = setTimeout(() => {
+      const container = latexContainerRef.current;
+      if (!container) return;
+
+      // Function to highlight keywords in text nodes
+      const highlightInNode = (node: Node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const text = node.textContent || '';
+          let newHTML = text;
+          let hasMatch = false;
+
+          // Sort keywords by length (longest first) to avoid partial matches
+          const sortedKeywords = [...keywords].sort((a, b) => b.keyword.length - a.keyword.length);
+
+          sortedKeywords.forEach((kwResult) => {
+            const keyword = kwResult.keyword;
+            const regex = new RegExp(`\\b(${keyword})\\b`, 'gi');
+
+            if (regex.test(text)) {
+              hasMatch = true;
+              newHTML = newHTML.replace(regex, (match) => {
+                return `<span class="keyword-highlight" data-keyword="${encodeURIComponent(JSON.stringify(kwResult))}">${match}</span>`;
+              });
+            }
+          });
+
+          if (hasMatch && node.parentNode) {
+            const wrapper = document.createElement('span');
+            wrapper.innerHTML = newHTML;
+            node.parentNode.replaceChild(wrapper, node);
+          }
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          // Skip KaTeX elements and already highlighted elements
+          const element = node as HTMLElement;
+          if (!element.classList.contains('katex') &&
+              !element.classList.contains('keyword-highlight')) {
+            Array.from(node.childNodes).forEach(highlightInNode);
+          }
+        }
+      };
+
+      highlightInNode(container);
+
+      // Add hover event listeners to highlighted keywords
+      const highlights = container.querySelectorAll('.keyword-highlight');
+      highlights.forEach((highlight) => {
+        highlight.addEventListener('mouseenter', handleKeywordHover);
+        highlight.addEventListener('mouseleave', handleKeywordMouseLeave);
+      });
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [keywords, latex, viewMode]);
+
+  // Handle keyword hover to show popup
+  const handleKeywordHover = (event: Event) => {
+    const target = event.target as HTMLElement;
+    const kwDataStr = target.getAttribute('data-keyword');
+
+    if (!kwDataStr) return;
+
+    try {
+      const kwResult: KeywordResult = JSON.parse(decodeURIComponent(kwDataStr));
+
+      // Create popup
+      const popup = document.createElement('div');
+      popup.className = 'keyword-popup';
+      popup.style.position = 'fixed';
+      popup.style.zIndex = '10000';
+
+      // Build popup content
+      let popupHTML = `
+        <div class="keyword-popup-header">
+          <strong>${kwResult.keyword}</strong>
+          ${kwResult.field ? `<span class="field-badge">${kwResult.field}</span>` : ''}
+        </div>
+      `;
+
+      if (kwResult.links.length > 0) {
+        popupHTML += '<div class="keyword-popup-links">';
+        kwResult.links.forEach((link, index) => {
+          popupHTML += `
+            <div class="popup-link-item">
+              <a href="${link.url}" target="_blank" rel="noopener noreferrer">
+                ${index + 1}. ${link.title}
+              </a>
+              <span class="popup-relevance">${Math.round(link.relevanceScore * 100)}%</span>
+              <div class="popup-domain">${link.displayLink}</div>
+            </div>
+          `;
+        });
+        popupHTML += '</div>';
+      } else {
+        popupHTML += '<div class="no-links-popup">No links available</div>';
+      }
+
+      popup.innerHTML = popupHTML;
+
+      // Position popup near the keyword
+      const rect = target.getBoundingClientRect();
+      popup.style.left = `${rect.left}px`;
+      popup.style.top = `${rect.bottom + 5}px`;
+
+      // Add to body
+      document.body.appendChild(popup);
+
+      // Store reference for cleanup
+      target.setAttribute('data-popup-id', 'active');
+      (target as any)._popup = popup;
+
+    } catch (err) {
+      console.error('Error showing keyword popup:', err);
+    }
+  };
+
+  const handleKeywordMouseLeave = (event: Event) => {
+    const target = event.target as HTMLElement;
+    const popup = (target as any)._popup;
+
+    if (popup && popup.parentNode) {
+      popup.parentNode.removeChild(popup);
+    }
+
+    target.removeAttribute('data-popup-id');
+    delete (target as any)._popup;
+  };
 
   // Render markdown and LaTeX in explanation when it changes
   useEffect(() => {
@@ -755,6 +975,13 @@ const SidePanel: React.FC = () => {
             >
               Copy Explanation
             </button>
+          </div>
+        )}
+
+        {/* Keywords detected but displayed inline in LaTeX text */}
+        {detectingKeywords && (
+          <div className="keywords-loading">
+            <p>🔍 Detecting keywords and fetching relevant links...</p>
           </div>
         )}
 

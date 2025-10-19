@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keyword Links Worker - Test Page</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section h2 {
+            color: #444;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input[type="text"],
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 14px;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .keyword-inputs {
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            border-radius: 4px;
+            background: #fafafa;
+            margin-bottom: 15px;
+        }
+
+        .keyword-input {
+            margin-bottom: 15px;
+        }
+
+        .keyword-input:last-child {
+            margin-bottom: 0;
+        }
+
+        .inline-group {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            background: #1976d2;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #1565c0;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .add-keyword {
+            background: #4caf50;
+            padding: 8px 16px;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .add-keyword:hover {
+            background: #45a049;
+        }
+
+        .remove-keyword {
+            background: #f44336;
+            padding: 6px 12px;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        .remove-keyword:hover {
+            background: #d32f2f;
+        }
+
+        .options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #1976d2;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            margin-top: 30px;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #c62828;
+        }
+
+        .success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #2e7d32;
+            margin-bottom: 20px;
+        }
+
+        .statistics {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        .statistics h3 {
+            margin-bottom: 10px;
+            color: #1976d2;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+
+        .stat-item {
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1976d2;
+        }
+
+        .keyword-result {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .keyword-result h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .field-badge {
+            display: inline-block;
+            background: #4caf50;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+
+        .highlight-info {
+            background: #fff9c4;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+
+        .search-query {
+            background: #f5f5f5;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            margin: 10px 0;
+        }
+
+        .links-section h4 {
+            margin: 15px 0 10px 0;
+            color: #555;
+        }
+
+        .link-item {
+            border-left: 3px solid #1976d2;
+            padding: 12px;
+            margin-bottom: 10px;
+            background: #fafafa;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .link-title {
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .link-title a {
+            color: #1976d2;
+            text-decoration: none;
+        }
+
+        .link-title a:hover {
+            text-decoration: underline;
+        }
+
+        .link-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .relevance-score {
+            font-weight: bold;
+            color: #4caf50;
+        }
+
+        .link-snippet {
+            margin-top: 8px;
+            color: #555;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .no-links {
+            color: #999;
+            font-style: italic;
+            padding: 10px;
+        }
+
+        pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 Keyword Links Worker Test</h1>
+        <p class="subtitle">Test the keyword highlighting and link generation worker</p>
+
+        <div class="section">
+            <h2>Configuration</h2>
+            <label for="workerUrl">Worker URL:</label>
+            <input type="text" id="workerUrl" value="http://localhost:8787" placeholder="http://localhost:8787 or https://your-worker.workers.dev">
+        </div>
+
+        <div class="section">
+            <h2>Input Text</h2>
+            <label for="text">Text to analyze:</label>
+            <textarea id="text" placeholder="Enter text containing keywords...">In group theory, the Sylow theorems are a collection of theorems named after the Norwegian mathematician Peter Ludwig Sylow that give detailed information about the number of subgroups of fixed order that a given finite group contains. The Sylow theorems form a fundamental part of finite group theory and have very important applications in the classification of finite simple groups.</textarea>
+        </div>
+
+        <div class="section">
+            <h2>Keywords</h2>
+            <div id="keywordsContainer"></div>
+            <button class="add-keyword" onclick="addKeyword()">+ Add Keyword</button>
+        </div>
+
+        <div class="section">
+            <h2>Options</h2>
+            <div class="options">
+                <div>
+                    <label for="maxLinks">Max Links per Keyword:</label>
+                    <input type="text" id="maxLinks" value="3">
+                </div>
+                <div>
+                    <label for="minScore">Min Relevance Score (0-1):</label>
+                    <input type="text" id="minScore" value="0.3">
+                </div>
+            </div>
+        </div>
+
+        <button id="testBtn" onclick="testWorker()">🚀 Test Worker</button>
+
+        <div id="results" class="results"></div>
+    </div>
+
+    <script>
+        let keywordCount = 0;
+
+        // Add initial keywords
+        function initKeywords() {
+            addKeyword('Sylow theorems', 'group theory', 'finite groups, subgroups');
+            addKeyword('finite group', 'group theory', '');
+        }
+
+        function addKeyword(text = '', field = '', context = '') {
+            keywordCount++;
+            const container = document.getElementById('keywordsContainer');
+            const div = document.createElement('div');
+            div.className = 'keyword-inputs';
+            div.id = `keyword-${keywordCount}`;
+            div.innerHTML = `
+                <div class="keyword-input">
+                    <label>Keyword Text:</label>
+                    <input type="text" class="kw-text" value="${text}" placeholder="e.g., neural networks">
+                </div>
+                <div class="keyword-input">
+                    <label>STEM Field (optional):</label>
+                    <input type="text" class="kw-field" value="${field}" placeholder="e.g., machine learning">
+                </div>
+                <div class="keyword-input">
+                    <label>Context/Related Terms (optional, comma-separated):</label>
+                    <input type="text" class="kw-context" value="${context}" placeholder="e.g., deep learning, AI">
+                </div>
+                <button class="remove-keyword" onclick="removeKeyword(${keywordCount})">Remove</button>
+            `;
+            container.appendChild(div);
+        }
+
+        function removeKeyword(id) {
+            const element = document.getElementById(`keyword-${id}`);
+            if (element) {
+                element.remove();
+            }
+        }
+
+        function getKeywords() {
+            const keywords = [];
+            const containers = document.querySelectorAll('.keyword-inputs');
+
+            containers.forEach(container => {
+                const text = container.querySelector('.kw-text').value.trim();
+                if (text) {
+                    const keyword = { text };
+
+                    const field = container.querySelector('.kw-field').value.trim();
+                    if (field) {
+                        keyword.field = field;
+                    }
+
+                    const context = container.querySelector('.kw-context').value.trim();
+                    if (context) {
+                        keyword.context = context.split(',').map(s => s.trim()).filter(s => s);
+                    }
+
+                    keywords.push(keyword);
+                }
+            });
+
+            return keywords;
+        }
+
+        async function testWorker() {
+            const resultsDiv = document.getElementById('results');
+            const testBtn = document.getElementById('testBtn');
+
+            // Get inputs
+            const workerUrl = document.getElementById('workerUrl').value.trim();
+            const text = document.getElementById('text').value.trim();
+            const keywords = getKeywords();
+            const maxLinks = parseInt(document.getElementById('maxLinks').value) || 3;
+            const minScore = parseFloat(document.getElementById('minScore').value) || 0.3;
+
+            // Validate
+            if (!workerUrl) {
+                resultsDiv.innerHTML = '<div class="error">Please enter a worker URL</div>';
+                return;
+            }
+
+            if (!text) {
+                resultsDiv.innerHTML = '<div class="error">Please enter text to analyze</div>';
+                return;
+            }
+
+            if (keywords.length === 0) {
+                resultsDiv.innerHTML = '<div class="error">Please add at least one keyword</div>';
+                return;
+            }
+
+            // Show loading
+            testBtn.disabled = true;
+            resultsDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Processing keywords and fetching links...</p>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`${workerUrl}/process`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text,
+                        keywords,
+                        maxLinksPerKeyword: maxLinks,
+                        minRelevanceScore: minScore,
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayResults(data);
+                } else {
+                    resultsDiv.innerHTML = `<div class="error">Error: ${data.error || 'Unknown error'}</div>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">Failed to connect to worker: ${error.message}</div>`;
+            } finally {
+                testBtn.disabled = false;
+            }
+        }
+
+        function displayResults(data) {
+            const resultsDiv = document.getElementById('results');
+
+            let html = '<div class="success">✓ Successfully processed keywords!</div>';
+
+            // Statistics
+            if (data.statistics) {
+                const stats = data.statistics;
+                html += `
+                    <div class="statistics">
+                        <h3>📊 Statistics</h3>
+                        <div class="stat-grid">
+                            <div class="stat-item">
+                                <div class="stat-label">Keywords</div>
+                                <div class="stat-value">${stats.totalKeywords}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Highlights</div>
+                                <div class="stat-value">${stats.totalHighlights}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Total Links</div>
+                                <div class="stat-value">${stats.totalLinks}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Avg Links/Keyword</div>
+                                <div class="stat-value">${stats.averageLinksPerKeyword}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Results for each keyword
+            if (data.results && data.results.length > 0) {
+                data.results.forEach((result, index) => {
+                    html += `
+                        <div class="keyword-result">
+                            <h3>
+                                ${index + 1}. ${escapeHtml(result.keyword)}
+                                ${result.field ? `<span class="field-badge">${escapeHtml(result.field)}</span>` : ''}
+                            </h3>
+
+                            <div class="highlight-info">
+                                <strong>📍 Highlights:</strong> Found ${result.highlights.length} occurrence${result.highlights.length !== 1 ? 's' : ''} in text
+                            </div>
+
+                            <div class="search-query">
+                                <strong>🔍 Search Query:</strong> ${escapeHtml(result.searchQuery)}
+                            </div>
+
+                            <div class="links-section">
+                                <h4>🔗 Top Links (${result.links.length}):</h4>
+                                ${result.links.length > 0 ? result.links.map((link, i) => `
+                                    <div class="link-item">
+                                        <div class="link-title">
+                                            ${i + 1}. <a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">
+                                                ${escapeHtml(link.title)}
+                                            </a>
+                                        </div>
+                                        <div class="link-meta">
+                                            <span>📌 ${escapeHtml(link.displayLink)}</span>
+                                            <span class="relevance-score">⭐ ${Math.round(link.relevanceScore * 100)}% relevant</span>
+                                        </div>
+                                        <div class="link-snippet">${escapeHtml(link.snippet)}</div>
+                                    </div>
+                                `).join('') : '<div class="no-links">No links found matching the criteria</div>'}
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            // Raw JSON
+            html += `
+                <div class="section">
+                    <h2>Raw Response</h2>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                </div>
+            `;
+
+            resultsDiv.innerHTML = html;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initialize on load
+        window.onload = function() {
+            initKeywords();
+        };
+    </script>
+</body>
+</html>

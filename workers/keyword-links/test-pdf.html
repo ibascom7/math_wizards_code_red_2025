@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Keyword Links Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f0f0;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            height: 100vh;
+        }
+
+        .pdf-viewer {
+            background: #525659;
+            padding: 20px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .pdf-canvas-container {
+            background: white;
+            margin: 0 auto;
+            position: relative;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .highlight-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+
+        .keyword-highlight {
+            position: absolute;
+            background: rgba(255, 235, 59, 0.4);
+            border: 1px solid rgba(255, 193, 7, 0.8);
+            cursor: pointer;
+            pointer-events: auto;
+            transition: all 0.2s;
+        }
+
+        .keyword-highlight:hover {
+            background: rgba(255, 193, 7, 0.6);
+            box-shadow: 0 2px 8px rgba(255, 193, 7, 0.5);
+        }
+
+        .sidebar {
+            background: white;
+            border-left: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid #ddd;
+            background: #1976d2;
+            color: white;
+        }
+
+        .sidebar-header h2 {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .controls {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            background: #f9f9f9;
+        }
+
+        .file-input {
+            margin-bottom: 10px;
+        }
+
+        .file-input label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .keyword-input {
+            margin-top: 10px;
+        }
+
+        .keyword-input label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            resize: vertical;
+            font-family: inherit;
+            font-size: 13px;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #1976d2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background: #1565c0;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .results-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .status.info {
+            background: #e3f2fd;
+            color: #1976d2;
+            border-left: 3px solid #1976d2;
+        }
+
+        .status.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-left: 3px solid #2e7d32;
+        }
+
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 3px solid #c62828;
+        }
+
+        .keyword-result {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .keyword-result h3 {
+            font-size: 15px;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .field-badge {
+            display: inline-block;
+            background: #4caf50;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            margin-left: 6px;
+        }
+
+        .highlights-count {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .link-item {
+            background: white;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            border-left: 3px solid #1976d2;
+        }
+
+        .link-item a {
+            color: #1976d2;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 13px;
+        }
+
+        .link-item a:hover {
+            text-decoration: underline;
+        }
+
+        .link-meta {
+            font-size: 11px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .relevance-score {
+            display: inline-block;
+            background: #4caf50;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            margin-left: 6px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #1976d2;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .popup {
+            position: fixed;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            padding: 12px;
+            max-width: 350px;
+            z-index: 10000;
+            display: none;
+        }
+
+        .popup.visible {
+            display: block;
+        }
+
+        .popup h4 {
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .popup .popup-link {
+            display: block;
+            padding: 6px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .popup .popup-link:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="pdf-viewer" id="pdfViewer">
+            <div class="pdf-canvas-container" id="pdfContainer">
+                <!-- PDF canvas will be inserted here -->
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>🔗 PDF Keyword Links</h2>
+                <div style="font-size: 13px; opacity: 0.9;">Extract text, highlight keywords, get relevant links</div>
+            </div>
+
+            <div class="controls">
+                <div class="file-input">
+                    <label>📄 Select PDF:</label>
+                    <input type="file" id="pdfFile" accept=".pdf">
+                </div>
+
+                <div class="keyword-input">
+                    <label>🔑 Keywords (one per line):</label>
+                    <textarea id="keywords" rows="4" placeholder="neural networks&#10;deep learning&#10;machine learning"></textarea>
+                </div>
+
+                <button id="processBtn" onclick="processPDF()" disabled>Process PDF</button>
+            </div>
+
+            <div class="results-container" id="results">
+                <div class="status info">
+                    👆 Upload a PDF file and enter keywords to get started
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="popup" id="popup"></div>
+
+    <script>
+        const WORKER_URL = 'http://localhost:8787';
+        let pdfDoc = null;
+        let currentPage = 1;
+        let extractedText = '';
+
+        // PDF.js worker setup
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        // Enable process button when file is selected
+        document.getElementById('pdfFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                loadPDF(file);
+                document.getElementById('processBtn').disabled = false;
+            }
+        });
+
+        async function loadPDF(file) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Loading PDF...</div>';
+
+            const arrayBuffer = await file.arrayBuffer();
+
+            try {
+                pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                await renderPage(1);
+
+                resultsDiv.innerHTML = `
+                    <div class="status success">
+                        ✓ PDF loaded: ${pdfDoc.numPages} page${pdfDoc.numPages > 1 ? 's' : ''}
+                    </div>
+                    <div class="status info">
+                        Enter keywords and click "Process PDF" to highlight and get links
+                    </div>
+                `;
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="status error">Error loading PDF: ${error.message}</div>`;
+            }
+        }
+
+        async function renderPage(pageNum) {
+            const page = await pdfDoc.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 1.5 });
+
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+
+            const container = document.getElementById('pdfContainer');
+            container.innerHTML = '';
+            container.appendChild(canvas);
+
+            await page.render({
+                canvasContext: context,
+                viewport: viewport
+            }).promise;
+
+            // Extract text
+            const textContent = await page.getTextContent();
+            extractedText = textContent.items.map(item => item.str).join(' ');
+        }
+
+        async function processPDF() {
+            const keywordsText = document.getElementById('keywords').value.trim();
+
+            if (!keywordsText) {
+                alert('Please enter at least one keyword');
+                return;
+            }
+
+            if (!extractedText) {
+                alert('Please wait for PDF to load');
+                return;
+            }
+
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Processing keywords and fetching links...</div>';
+
+            // Parse keywords
+            const keywordLines = keywordsText.split('\n').filter(line => line.trim());
+            const keywords = keywordLines.map(line => {
+                const parts = line.split('|').map(p => p.trim());
+                return {
+                    text: parts[0],
+                    field: parts[1] || undefined,
+                    context: parts[2] ? parts[2].split(',').map(s => s.trim()) : undefined
+                };
+            });
+
+            try {
+                const response = await fetch(`${WORKER_URL}/process`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        text: extractedText,
+                        keywords: keywords,
+                        maxLinksPerKeyword: 3,
+                        minRelevanceScore: 0.3
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayResults(data);
+                    highlightKeywordsOnPDF(data.results);
+                } else {
+                    resultsDiv.innerHTML = `<div class="status error">Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="status error">Failed to process: ${error.message}</div>`;
+            }
+        }
+
+        function displayResults(data) {
+            const resultsDiv = document.getElementById('results');
+
+            let html = `
+                <div class="status success">
+                    ✓ Found ${data.statistics.totalHighlights} highlights,
+                    ${data.statistics.totalLinks} links
+                </div>
+            `;
+
+            data.results.forEach((result, index) => {
+                html += `
+                    <div class="keyword-result">
+                        <h3>
+                            ${index + 1}. ${escapeHtml(result.keyword)}
+                            ${result.field ? `<span class="field-badge">${escapeHtml(result.field)}</span>` : ''}
+                        </h3>
+                        <div class="highlights-count">
+                            📍 ${result.highlights.length} occurrence${result.highlights.length !== 1 ? 's' : ''} found
+                        </div>
+                        ${result.links.map((link, i) => `
+                            <div class="link-item">
+                                <a href="${escapeHtml(link.url)}" target="_blank">
+                                    ${i + 1}. ${escapeHtml(link.title)}
+                                </a>
+                                <span class="relevance-score">${Math.round(link.relevanceScore * 100)}%</span>
+                                <div class="link-meta">${escapeHtml(link.displayLink)}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            });
+
+            resultsDiv.innerHTML = html;
+        }
+
+        function highlightKeywordsOnPDF(results) {
+            // Clear existing highlights
+            const existingOverlay = document.querySelector('.highlight-overlay');
+            if (existingOverlay) {
+                existingOverlay.remove();
+            }
+
+            const container = document.getElementById('pdfContainer');
+            const canvas = container.querySelector('canvas');
+            if (!canvas) return;
+
+            const overlay = document.createElement('div');
+            overlay.className = 'highlight-overlay';
+            overlay.style.width = canvas.width + 'px';
+            overlay.style.height = canvas.height + 'px';
+
+            results.forEach(result => {
+                result.highlights.forEach(highlight => {
+                    const highlightEl = document.createElement('div');
+                    highlightEl.className = 'keyword-highlight';
+                    highlightEl.title = `${result.keyword} - Click for links`;
+
+                    // Simple positioning (you may need to adjust based on actual PDF text positions)
+                    const approxY = Math.random() * (canvas.height - 100);
+                    const approxX = Math.random() * (canvas.width - 200);
+
+                    highlightEl.style.left = approxX + 'px';
+                    highlightEl.style.top = approxY + 'px';
+                    highlightEl.style.width = '150px';
+                    highlightEl.style.height = '20px';
+
+                    highlightEl.addEventListener('click', (e) => {
+                        showPopup(e, result);
+                    });
+
+                    overlay.appendChild(highlightEl);
+                });
+            });
+
+            container.appendChild(overlay);
+        }
+
+        function showPopup(event, result) {
+            const popup = document.getElementById('popup');
+
+            let html = `<h4>${escapeHtml(result.keyword)}</h4>`;
+
+            if (result.links.length > 0) {
+                result.links.forEach((link, i) => {
+                    html += `
+                        <div class="popup-link">
+                            <a href="${escapeHtml(link.url)}" target="_blank">
+                                ${i + 1}. ${escapeHtml(link.title)}
+                            </a>
+                            <span class="relevance-score">${Math.round(link.relevanceScore * 100)}%</span>
+                        </div>
+                    `;
+                });
+            } else {
+                html += '<div style="color: #999; font-size: 12px;">No links found</div>';
+            }
+
+            popup.innerHTML = html;
+            popup.className = 'popup visible';
+            popup.style.left = event.clientX + 10 + 'px';
+            popup.style.top = event.clientY + 10 + 'px';
+
+            // Close popup when clicking outside
+            setTimeout(() => {
+                document.addEventListener('click', function closePopup(e) {
+                    if (!popup.contains(e.target)) {
+                        popup.className = 'popup';
+                        document.removeEventListener('click', closePopup);
+                    }
+                });
+            }, 100);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

@@ -602,3 +602,120 @@ body {
   border-radius: 3px;
   transition: background-color 0.3s ease;
 }
+
+/* Inline Keyword Highlighting */
+.keyword-highlight {
+  background-color: #ffeb3b;
+  padding: 2px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 2px solid #ffc107;
+}
+
+.keyword-highlight:hover {
+  background-color: #ffc107;
+  box-shadow: 0 2px 4px rgba(255, 193, 7, 0.4);
+}
+
+/* Keyword Hover Popup */
+.keyword-popup {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: 0;
+  max-width: 400px;
+  font-size: 14px;
+  overflow: hidden;
+}
+
+.keyword-popup-header {
+  background: #1976d2;
+  color: white;
+  padding: 12px 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+}
+
+.keyword-popup-header strong {
+  flex: 1;
+}
+
+.keyword-popup-header .field-badge {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.keyword-popup-links {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.popup-link-item {
+  border-left: 3px solid #1976d2;
+  padding-left: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.popup-link-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.popup-link-item a {
+  color: #1976d2;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 13px;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.popup-link-item a:hover {
+  text-decoration: underline;
+}
+
+.popup-relevance {
+  background: #4caf50;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: bold;
+  margin-left: 6px;
+}
+
+.popup-domain {
+  color: #999;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.no-links-popup {
+  padding: 12px 15px;
+  color: #999;
+  font-style: italic;
+  font-size: 13px;
+}
+
+.keywords-loading {
+  background: #e3f2fd;
+  border-radius: 8px;
+  padding: 15px;
+  margin: 15px 0;
+  text-align: center;
+  color: #1976d2;
+  font-size: 14px;
+}

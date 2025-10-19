@@ -1,0 +1,13 @@
+name = "keyword-links"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# Google Custom Search API credentials for local development
+# Replace with your actual API key and Search Engine ID
+[vars]
+GOOGLE_API_KEY = "AIzaSyB4GxsjIFXYdUDtcb6emztZivTFFFv_SQk"
+GOOGLE_SEARCH_ENGINE_ID = "b77fe2c0243464f0f"
+
+# For production deployment, use secrets instead:
+# wrangler secret put GOOGLE_API_KEY
+# wrangler secret put GOOGLE_SEARCH_ENGINE_ID
