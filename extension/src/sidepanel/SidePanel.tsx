@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import renderMathInElement from 'katex/dist/contrib/auto-render';
+import { marked } from 'marked';
+import 'katex/dist/katex.min.css';
 
 interface PDFInfo {
   url: string;
@@ -15,6 +18,15 @@ const SidePanel: React.FC = () => {
   const [latex, setLatex] = useState<string | null>(null);
   const [explanation, setExplanation] = useState<string | null>(null);
   const [explaining, setExplaining] = useState(false);
+  const [viewMode, setViewMode] = useState<'rendered' | 'raw'>('rendered');
+  const [ttsDropdownOpen, setTtsDropdownOpen] = useState(false);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [generatingAudio, setGeneratingAudio] = useState(false);
+  const [currentWordIndex, setCurrentWordIndex] = useState<number>(-1);
+  const latexContainerRef = useRef<HTMLDivElement>(null);
+  const explanationContainerRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const scanForPDFs = async () => {
     setScanning(true);
@@ -221,8 +233,9 @@ const SidePanel: React.FC = () => {
         console.log('Viewer screenshot captured and cropped, base64 length:', base64Image.length);
       }
 
-      // Send to Cloudflare Worker /ocr endpoint
-      const ocrResponse = await fetch('https://math-wizards-ocr.bascomisaiah.workers.dev', {
+      // STAGE 1: Send to handwriting OCR worker first
+      console.log('Stage 1: Running handwriting OCR...');
+      const handwritingResponse = await fetch('https://math-wizards-handwriting-ocr.bascomisaiah.workers.dev', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -232,13 +245,47 @@ const SidePanel: React.FC = () => {
         })
       });
 
-      if (!ocrResponse.ok) {
-        throw new Error(`OCR request failed: ${ocrResponse.status}`);
+      if (!handwritingResponse.ok) {
+        const errorText = await handwritingResponse.text();
+        console.error('Handwriting OCR failed:', errorText);
+        throw new Error(`Handwriting OCR failed: ${handwritingResponse.status}`);
       }
 
-      const result = await ocrResponse.json();
-      setLatex(result.latex || 'No LaTeX detected');
-      console.log('OCR result:', result);
+      const handwritingResult = await handwritingResponse.json();
+      console.log('Handwriting OCR result:', handwritingResult);
+
+      // STAGE 2: Use handwriting OCR output with Mathpix for higher accuracy
+      // Send the annotated image (with typed text overlay) to Mathpix
+      console.log('Stage 2: Sending to Mathpix OCR for refinement...');
+
+      const mathpixResponse = await fetch('https://math-wizards-ocr.bascomisaiah.workers.dev', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          image: base64Image,
+          // Include the typed text from handwriting OCR as context
+          handwriting_text: handwritingResult.typed_text
+        })
+      });
+
+      if (!mathpixResponse.ok) {
+        // If Mathpix fails, fall back to handwriting OCR results
+        console.warn('Mathpix OCR failed, using handwriting OCR output');
+        setLatex(handwritingResult.typed_text || 'No text detected');
+      } else {
+        const mathpixResult = await mathpixResponse.json();
+        console.log('Mathpix OCR result:', mathpixResult);
+
+        // Combine results: prefer Mathpix LaTeX if available, otherwise use handwriting text
+        const finalLatex = mathpixResult.latex || handwritingResult.typed_text || 'No LaTeX detected';
+        setLatex(finalLatex);
+
+        // Log both for comparison
+        console.log('Handwriting text:', handwritingResult.typed_text);
+        console.log('Mathpix LaTeX:', mathpixResult.latex);
+      }
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to extract LaTeX');
@@ -281,6 +328,124 @@ const SidePanel: React.FC = () => {
     }
   };
 
+  const generateAudio = async (text: string) => {
+    setGeneratingAudio(true);
+    setError(null);
+
+    try {
+      // Clean the text for TTS (remove LaTeX commands if needed)
+      const cleanText = text.replace(/[\\${}]/g, ' ').replace(/\s+/g, ' ').trim();
+
+      console.log('Generating TTS for text:', cleanText);
+
+      // Call TTS worker
+      const response = await fetch('https://math-wizards-tts.bascomisaiah.workers.dev', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text: cleanText
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `TTS request failed: ${response.status}`);
+      }
+
+      // Get audio blob and create URL
+      const audioBlob = await response.blob();
+      const url = URL.createObjectURL(audioBlob);
+
+      // Clean up old audio URL if exists
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+
+      setAudioUrl(url);
+      console.log('Audio generated successfully');
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate audio');
+      console.error('Error generating audio:', err);
+    } finally {
+      setGeneratingAudio(false);
+    }
+  };
+
+  const playAudio = () => {
+    if (audioRef.current && audioUrl) {
+      audioRef.current.play();
+      setIsPlaying(true);
+    }
+  };
+
+  const pauseAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
+  };
+
+  const handleAudioEnded = () => {
+    setIsPlaying(false);
+    setCurrentWordIndex(-1);
+  };
+
+  // Handle audio time update for word highlighting
+  const handleTimeUpdate = () => {
+    if (!audioRef.current || !latex) return;
+
+    const currentTime = audioRef.current.currentTime;
+    const duration = audioRef.current.duration;
+
+    if (!duration) return;
+
+    // Split text into words (simple split, ignoring LaTeX commands)
+    const words = latex.replace(/[\\${}]/g, ' ').split(/\s+/).filter(w => w.trim());
+
+    // Calculate which word should be highlighted based on time
+    const wordIndex = Math.floor((currentTime / duration) * words.length);
+
+    if (wordIndex !== currentWordIndex) {
+      setCurrentWordIndex(wordIndex);
+    }
+  };
+
+  // Effect to apply word highlighting when currentWordIndex changes
+  useEffect(() => {
+    if (!latexContainerRef.current || currentWordIndex < 0 || !latex) {
+      return;
+    }
+
+    const container = latexContainerRef.current;
+
+    // Remove previous highlights
+    const previousHighlight = container.querySelector('.tts-highlight');
+    if (previousHighlight) {
+      previousHighlight.classList.remove('tts-highlight');
+    }
+
+    // In raw mode, highlight the specific word span
+    if (viewMode === 'raw') {
+      const wordSpan = container.querySelector(`[data-word-index="${currentWordIndex}"]`);
+      if (wordSpan) {
+        wordSpan.classList.add('tts-highlight');
+
+        // Scroll to make highlighted word visible
+        wordSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    } else {
+      // In rendered mode, just auto-scroll based on progress
+      const words = latex.replace(/[\\${}]/g, ' ').split(/\s+/).filter(w => w.trim());
+      const scrollPercentage = words.length > 0 ? currentWordIndex / words.length : 0;
+      const scrollTop = container.scrollHeight * scrollPercentage;
+      container.scrollTop = scrollTop;
+    }
+
+  }, [currentWordIndex, latex, viewMode]);
+
   // Helper function to crop image using canvas
   const cropImage = async (
     dataUrl: string,
@@ -319,6 +484,113 @@ const SidePanel: React.FC = () => {
     // Automatically scan when sidebar opens
     scanForPDFs();
   }, []);
+
+  // Render LaTeX with KaTeX when latex content changes
+  useEffect(() => {
+    if (latex && latexContainerRef.current) {
+      // Clear previous content
+      latexContainerRef.current.innerHTML = '';
+
+      if (viewMode === 'raw') {
+        // Show formatted raw LaTeX with word wrapping for TTS highlighting
+        const pre = document.createElement('pre');
+        pre.style.whiteSpace = 'pre-wrap';
+        pre.style.overflowWrap = 'break-word';
+        pre.style.fontFamily = 'monospace';
+        pre.style.fontSize = '13px';
+        pre.style.lineHeight = '1.6';
+
+        // Split into words and wrap each in a span for highlighting
+        const words = latex.split(/(\s+)/); // Keep whitespace
+        words.forEach((word, index) => {
+          const span = document.createElement('span');
+          span.textContent = word;
+          span.setAttribute('data-word-index', Math.floor(index / 2).toString());
+          pre.appendChild(span);
+        });
+
+        latexContainerRef.current.appendChild(pre);
+      } else {
+        // Check if latex has delimiters
+        const hasDelimiters = /\\\(|\\\)|\\\[|\\\]|\$\$|\$/.test(latex);
+
+        if (!hasDelimiters) {
+          // No delimiters - treat entire content as display math
+          // This handles raw LaTeX like \begin{array}...\end{array}
+          try {
+            // Import katex for direct rendering
+            import('katex').then((katex) => {
+              if (latexContainerRef.current) {
+                katex.default.render(latex, latexContainerRef.current, {
+                  displayMode: true,
+                  throwOnError: false,
+                  errorColor: '#cc0000',
+                  strict: false,
+                  trust: false
+                });
+              }
+            });
+          } catch (err) {
+            console.error('KaTeX render error:', err);
+            latexContainerRef.current.textContent = latex;
+          }
+        } else {
+          // Has delimiters - use auto-render for mixed text and math
+          latexContainerRef.current.textContent = latex;
+
+          try {
+            renderMathInElement(latexContainerRef.current, {
+              delimiters: [
+                {left: '$$', right: '$$', display: true},
+                {left: '\\[', right: '\\]', display: true},
+                {left: '$', right: '$', display: false},
+                {left: '\\(', right: '\\)', display: false}
+              ],
+              throwOnError: false,
+              errorColor: '#cc0000',
+              strict: false,
+              trust: false
+            });
+          } catch (err) {
+            console.error('KaTeX auto-render error:', err);
+          }
+        }
+      }
+    }
+  }, [latex, viewMode]);
+
+  // Render markdown and LaTeX in explanation when it changes
+  useEffect(() => {
+    if (explanation && explanationContainerRef.current) {
+      // Clear previous content
+      explanationContainerRef.current.innerHTML = '';
+
+      try {
+        // First, parse markdown to HTML
+        const htmlContent = marked.parse(explanation) as string;
+        explanationContainerRef.current.innerHTML = htmlContent;
+
+        // Then render any LaTeX delimiters in the parsed HTML
+        renderMathInElement(explanationContainerRef.current, {
+          delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '\\[', right: '\\]', display: true},
+            {left: '$', right: '$', display: false},
+            {left: '\\(', right: '\\)', display: false}
+          ],
+          throwOnError: false,
+          errorColor: '#cc0000',
+          strict: false,
+          trust: false
+        });
+      } catch (err) {
+        console.error('Markdown/LaTeX explanation render error:', err);
+        // Fallback to plain text
+        explanationContainerRef.current.textContent = explanation;
+      }
+    }
+  }, [explanation]);
+
 
   return (
     <div className="sidepanel">
@@ -380,16 +652,29 @@ const SidePanel: React.FC = () => {
 
         {latex && (
           <div className="latex-result">
-            <h3>Extracted LaTeX</h3>
-            <div className="latex-content">
-              {latex}
+            <div className="latex-header">
+              <h3>Extracted Math</h3>
+              <button
+                onClick={() => setViewMode(viewMode === 'rendered' ? 'raw' : 'rendered')}
+                className="view-toggle"
+                title="Toggle between rendered math and raw LaTeX code"
+              >
+                {viewMode === 'rendered' ? '📝 View Raw' : '✨ View Rendered'}
+              </button>
+            </div>
+            <div className="latex-content" ref={latexContainerRef}>
+              {/* LaTeX will be rendered here by KaTeX */}
+            </div>
+            <div className="ocr-note">
+              💡 Two-stage OCR: Handwriting recognition → Mathpix refinement for highest accuracy
             </div>
             <div className="latex-actions">
               <button
                 onClick={() => navigator.clipboard.writeText(latex)}
                 className="copy-button"
+                title="Copy the raw LaTeX code to paste into LaTeX editors, Overleaf, or documents"
               >
-                Copy to Clipboard
+                📋 Copy Raw LaTeX
               </button>
               <button
                 onClick={() => explainLatex(latex)}
@@ -398,15 +683,71 @@ const SidePanel: React.FC = () => {
               >
                 {explaining ? 'Explaining...' : '🤖 Explain This Math'}
               </button>
+
+              {/* TTS Controls */}
+              <div className="tts-container">
+                <button
+                  onClick={() => setTtsDropdownOpen(!ttsDropdownOpen)}
+                  className="tts-icon-button"
+                  title="Text-to-Speech"
+                >
+                  🔊
+                </button>
+
+                {ttsDropdownOpen && (
+                  <div className="tts-dropdown">
+                    {!audioUrl ? (
+                      <button
+                        onClick={() => generateAudio(latex)}
+                        disabled={generatingAudio}
+                        className="tts-generate-button"
+                      >
+                        {generatingAudio ? 'Generating...' : 'Generate Audio'}
+                      </button>
+                    ) : (
+                      <div className="tts-controls">
+                        <button
+                          onClick={playAudio}
+                          disabled={isPlaying}
+                          className="tts-play-button"
+                          title="Play"
+                        >
+                          ▶️ Play
+                        </button>
+                        <button
+                          onClick={pauseAudio}
+                          disabled={!isPlaying}
+                          className="tts-pause-button"
+                          title="Pause"
+                        >
+                          ⏸️ Pause
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Hidden audio element */}
+            {audioUrl && (
+              <audio
+                ref={audioRef}
+                src={audioUrl}
+                onEnded={handleAudioEnded}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onTimeUpdate={handleTimeUpdate}
+              />
+            )}
           </div>
         )}
 
         {explanation && (
           <div className="explanation-result">
             <h3>AI Explanation</h3>
-            <div className="explanation-content">
-              {explanation}
+            <div className="explanation-content" ref={explanationContainerRef}>
+              {/* Explanation with rendered LaTeX will appear here */}
             </div>
             <button
               onClick={() => navigator.clipboard.writeText(explanation)}

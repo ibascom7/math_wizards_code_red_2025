@@ -176,23 +176,114 @@ body {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.latex-result h3 {
+.latex-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 10px;
+}
+
+.latex-result h3 {
+  margin: 0;
   font-size: 16px;
   color: #333;
 }
 
-.latex-content {
-  padding: 12px;
-  background: #f9f9f9;
-  border: 1px solid #e0e0e0;
+.view-toggle {
+  padding: 6px 12px;
+  background: #f0f0f0;
+  color: #333;
+  border: 1px solid #ddd;
   border-radius: 4px;
-  font-family: 'Courier New', monospace;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.view-toggle:hover {
+  background: #e0e0e0;
+  border-color: #ccc;
+}
+
+.ocr-note {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #fff9e6;
+  border-left: 3px solid #ffc107;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #856404;
   line-height: 1.5;
-  word-break: break-all;
-  max-height: 200px;
+}
+
+.latex-content {
+  padding: 20px;
+  background: #ffffff;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 2;
+  max-height: 500px;
+  overflow-x: auto;
   overflow-y: auto;
+  text-align: left;
+  min-height: 60px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+/* KaTeX specific styling */
+.latex-content .katex {
+  font-size: 1.1em;
+}
+
+/* Display math - block level with spacing */
+.latex-content .katex-display {
+  display: block;
+  margin: 1.5em 0 !important;
+  padding: 1em 0;
+  text-align: center;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.latex-content .katex-display > .katex {
+  display: inline-block;
+  text-align: center;
+  min-width: 0;
+}
+
+/* Inline math - keep inline with text */
+.latex-content .katex:not(.katex-display) {
+  display: inline;
+  vertical-align: baseline;
+}
+
+/* Array and alignment structures need space */
+.latex-content .katex .arraycolsep {
+  width: 0.5em;
+}
+
+.latex-content .katex .mspace {
+  display: inline-block;
+}
+
+/* Ensure text between math doesn't overlap */
+.latex-content {
+  overflow-wrap: break-word;
+}
+
+/* Fix for array environments */
+.latex-content .katex .mtable {
+  margin: 0.5em 0;
+}
+
+/* Better spacing for fractions and complex expressions */
+.latex-content .katex .mfrac {
+  vertical-align: middle;
+  margin: 0.2em;
 }
 
 .latex-actions {
@@ -258,23 +349,256 @@ body {
 }
 
 .explanation-content {
-  padding: 15px;
+  padding: 20px;
   background: #f8f9fa;
   border: 1px solid #e9ecef;
   border-radius: 4px;
   font-size: 14px;
   line-height: 1.7;
   color: #333;
-  max-height: 400px;
+  max-height: 500px;
   overflow-y: auto;
-  white-space: pre-wrap;
+  overflow-x: hidden;
   word-wrap: break-word;
 }
 
+/* Markdown headings */
+.explanation-content h1,
+.explanation-content h2,
+.explanation-content h3,
+.explanation-content h4 {
+  margin-top: 1.5em;
+  margin-bottom: 0.75em;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #2c3e50;
+}
+
+.explanation-content h1 {
+  font-size: 1.8em;
+  border-bottom: 2px solid #e9ecef;
+  padding-bottom: 0.3em;
+}
+
+.explanation-content h2 {
+  font-size: 1.5em;
+  border-bottom: 1px solid #e9ecef;
+  padding-bottom: 0.3em;
+}
+
+.explanation-content h3 {
+  font-size: 1.3em;
+}
+
+.explanation-content h4 {
+  font-size: 1.1em;
+}
+
+/* First heading has no top margin */
+.explanation-content h1:first-child,
+.explanation-content h2:first-child,
+.explanation-content h3:first-child,
+.explanation-content h4:first-child {
+  margin-top: 0;
+}
+
+/* Paragraphs */
 .explanation-content p {
-  margin-bottom: 12px;
+  margin-bottom: 1em;
+  line-height: 1.7;
 }
 
 .explanation-content p:last-child {
   margin-bottom: 0;
+}
+
+/* Lists */
+.explanation-content ul,
+.explanation-content ol {
+  margin: 1em 0;
+  padding-left: 2em;
+}
+
+.explanation-content li {
+  margin-bottom: 0.5em;
+  line-height: 1.6;
+}
+
+.explanation-content li:last-child {
+  margin-bottom: 0;
+}
+
+/* Code blocks */
+.explanation-content code {
+  background: #e9ecef;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  color: #d63384;
+}
+
+.explanation-content pre {
+  background: #2d2d2d;
+  color: #f8f8f2;
+  padding: 1em;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 1em 0;
+}
+
+.explanation-content pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+  font-size: 0.85em;
+}
+
+/* Emphasis */
+.explanation-content strong {
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+.explanation-content em {
+  font-style: italic;
+}
+
+/* Blockquotes */
+.explanation-content blockquote {
+  margin: 1em 0;
+  padding: 0.5em 1em;
+  border-left: 4px solid #667eea;
+  background: #f0f2ff;
+  color: #555;
+}
+
+/* Horizontal rule */
+.explanation-content hr {
+  border: none;
+  border-top: 1px solid #e9ecef;
+  margin: 1.5em 0;
+}
+
+/* Links */
+.explanation-content a {
+  color: #667eea;
+  text-decoration: none;
+}
+
+.explanation-content a:hover {
+  text-decoration: underline;
+}
+
+/* LaTeX in explanations */
+.explanation-content .katex {
+  font-size: 1.05em;
+}
+
+.explanation-content .katex-display {
+  margin: 1em 0;
+}
+
+/* TTS Controls */
+.tts-container {
+  position: relative;
+  display: inline-block;
+}
+
+.tts-icon-button {
+  padding: 8px 16px;
+  background: #ff9800;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.tts-icon-button:hover {
+  background: #f57c00;
+}
+
+.tts-dropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 5px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 10px;
+  min-width: 180px;
+  z-index: 1000;
+}
+
+.tts-generate-button {
+  width: 100%;
+  padding: 8px 12px;
+  background: #ff9800;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.tts-generate-button:hover:not(:disabled) {
+  background: #f57c00;
+}
+
+.tts-generate-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.tts-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tts-play-button,
+.tts-pause-button {
+  width: 100%;
+  padding: 8px 12px;
+  background: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.tts-play-button:hover:not(:disabled) {
+  background: #45a049;
+}
+
+.tts-pause-button {
+  background: #ff5722;
+}
+
+.tts-pause-button:hover:not(:disabled) {
+  background: #e64a19;
+}
+
+.tts-play-button:disabled,
+.tts-pause-button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Word highlighting during TTS playback */
+.latex-content .tts-highlight {
+  background-color: #ffeb3b;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: background-color 0.3s ease;
 }
