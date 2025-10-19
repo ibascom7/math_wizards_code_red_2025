@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 
 interface PDFInfo {
   url: string;
-  type: 'embed' | 'object' | 'iframe' | 'link' | 'direct';
+  type: 'embed' | 'object' | 'iframe' | 'link' | 'direct' | 'viewer';
   text?: string;
+  images?: string[];
 }
 
 const SidePanel: React.FC = () => {
@@ -103,7 +104,7 @@ const SidePanel: React.FC = () => {
 
         {pdfs.length > 0 && (
           <div className="pdf-list">
-            <h2>Found {pdfs.length} PDF{pdfs.length !== 1 ? 's' : ''}</h2>
+            <h2>Found {pdfs.length} Document{pdfs.length !== 1 ? 's' : ''}</h2>
             {pdfs.map((pdf, index) => (
               <div key={index} className="pdf-item">
                 <div className="pdf-type">{pdf.type.toUpperCase()}</div>
@@ -115,6 +116,16 @@ const SidePanel: React.FC = () => {
                 >
                   {pdf.text || pdf.url}
                 </a>
+                {pdf.type === 'viewer' && (
+                  <div className="viewer-note">
+                    Image-based viewer detected. OCR can extract text from visible pages.
+                  </div>
+                )}
+                {pdf.images && pdf.images.length > 0 && (
+                  <div className="image-preview">
+                    <small>{pdf.images.length} page image(s) found</small>
+                  </div>
+                )}
               </div>
             ))}
           </div>

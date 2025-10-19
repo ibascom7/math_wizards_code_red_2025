@@ -13,6 +13,8 @@ module.exports = {
     filename: '[name].js',
     clean: true
   },
+  // IMPORTANT: Don't use eval for Chrome extensions
+  devtool: 'cheap-module-source-map',
   module: {
     rules: [
       {
